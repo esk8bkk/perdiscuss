@@ -160,7 +160,7 @@ table.dt tr:hover td{background:#faf8f3;}
 .penbtn:hover{opacity:1;}
 .penbtn.hot{opacity:1;}
 /* floating translucent reference panel */
-.bfloat{position:absolute;top:16px;right:16px;width:380px;max-height:74%;display:flex;flex-direction:column;background:rgba(255,255,255,.95);border:1px solid rgba(255,255,255,.6);border-radius:11px;box-shadow:0 14px 36px rgba(0,0,0,.5);z-index:6;color:#1f1f1f;will-change:transform;}
+.bfloat{position:absolute;top:16px;right:16px;width:380px;max-height:74%;display:flex;flex-direction:column;background:#ffffff;border:1px solid #c9c2b4;border-radius:11px;z-index:6;color:#1f1f1f;}
 .bfloat.hidden{display:none;}
 .bfloat .fhead{cursor:grab;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 11px;background:rgba(61,27,92,.95);color:#fff;border-radius:11px 11px 0 0;font-size:12.5px;font-weight:700;user-select:none;}
 .bfloat .fhead:active{cursor:grabbing;}
@@ -276,8 +276,6 @@ table.dt tr:hover td{background:#faf8f3;}
       <div class="fhead" id="bfloatHead">
         <span class="ftitle">📄 <span id="bfloatTitle"></span></span>
         <span class="fctrl">
-          <span class="fopac">opacity</span>
-          <input type="range" id="bfloatOp" min="30" max="100" value="92" oninput="setFloatOpacity(this.value)">
           <span class="fx" title="Hide (re-open with 📄 Re-read)" onclick="toggleFloat(false)">✕</span>
         </span>
       </div>
@@ -551,8 +549,7 @@ function openBoard(id){
   document.getElementById("bfloatTitle").textContent = s.id + " — " + s.title;
   document.getElementById("bfloatBody").innerHTML = sectionContentHTML(s);
   const bf=document.getElementById("bfloat");
-  bf.style.left=""; bf.style.right="16px"; bf.style.top="16px"; bf.style.opacity=0.92;
-  document.getElementById("bfloatOp").value=92;
+  bf.style.left=""; bf.style.right="16px"; bf.style.top="16px"; bf.style.opacity=1;
   bf.classList.add("hidden"); document.getElementById("floatBtn").classList.remove("on");  // start hidden so the canvas is unobstructed (tap 📄 Re-read to show)
   document.getElementById("boardOv").classList.add("show");
   bd.cv = document.getElementById("boardCanvas");
@@ -625,11 +622,15 @@ function bindBoard(){
   };
   cv.onpointermove = e=>{ if(!bd.drawing) return;
     const evs = (e.getCoalescedEvents && e.getCoalescedEvents().length) ? e.getCoalescedEvents() : [e];
-    const c=bd.ctx; let last=bd.cur.points[bd.cur.points.length-1];
-    for(const ev of evs){ const nx=ev.clientX-bd.rect.left, ny=ev.clientY-bd.rect.top, np=[nx,ny];
-      if(bd.cur.erase) eraseSeg(c,last,np,bd.cur.size); else chalkCore(c,last,np,bd.cur.size,bd.cur.color);  // fast line only — no grain while moving
-      bd.cur.points.push([Math.round(nx),Math.round(ny)]); last=np;
-    }
+    const c=bd.ctx, last=bd.cur.points[bd.cur.points.length-1];
+    // ONE path + ONE stroke() for the whole batch of points — not one stroke per point
+    if(bd.cur.erase){ c.save(); c.globalCompositeOperation="destination-out"; c.strokeStyle="rgba(0,0,0,1)"; }
+    else { c.globalAlpha=0.9; c.strokeStyle=bd.cur.color; }
+    c.lineWidth=bd.cur.size*(bd.cur.erase?2.4:1); c.lineCap="round"; c.lineJoin="round";
+    c.beginPath(); c.moveTo(last[0],last[1]);
+    for(const ev of evs){ const nx=ev.clientX-bd.rect.left, ny=ev.clientY-bd.rect.top; c.lineTo(nx,ny); bd.cur.points.push([Math.round(nx),Math.round(ny)]); }
+    c.stroke();
+    if(bd.cur.erase) c.restore(); else c.globalAlpha=1;
   };
   cv.onpointerup = cv.onpointercancel = e=>{ if(!bd.drawing) return; bd.drawing=false;
     if(bd.cur && bd.cur.points.length){
