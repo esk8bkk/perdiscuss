@@ -519,14 +519,15 @@ function chalkCore(c,p0,p1,size,color){
   c.beginPath(); c.moveTo(p0[0],p0[1]); c.lineTo(p1[0],p1[1]); c.stroke(); c.globalAlpha=1;
 }
 function chalkStamp(c,cx,cy,size,color){
-  const R=size*0.6, n=Math.round(size*1.4)+3; c.fillStyle=color;
+  const R=size*0.6, n=Math.round(size)+2; c.fillStyle=color;
   for(let i=0;i<n;i++){ const a=Math.random()*6.283, rr=Math.pow(Math.random(),.7)*R;
     c.globalAlpha=0.07+Math.random()*0.22; c.fillRect(cx+Math.cos(a)*rr, cy+Math.sin(a)*rr, 1, 1); }
   c.globalAlpha=1;
 }
-function chalkGrain(c,pts,size,color){   // one-time dusty pass along a finished stroke
-  for(let i=1;i<pts.length;i++){ const p0=pts[i-1],p1=pts[i], d=Math.hypot(p1[0]-p0[0],p1[1]-p0[1]), steps=Math.max(1,Math.floor(d/(size*0.7)));
-    for(let s=0;s<=steps;s++){ const t=s/steps; chalkStamp(c,p0[0]+(p1[0]-p0[0])*t,p0[1]+(p1[1]-p0[1])*t,size,color); } }
+function chalkGrain(c,pts,size,color){   // one-time dusty pass along a finished stroke (capped for perf)
+  let budget=1400;
+  for(let i=1;i<pts.length && budget>0;i++){ const p0=pts[i-1],p1=pts[i], d=Math.hypot(p1[0]-p0[0],p1[1]-p0[1]), steps=Math.max(1,Math.floor(d/(size*1.1)));
+    for(let s=0;s<=steps && budget>0;s++){ const t=s/steps; chalkStamp(c,p0[0]+(p1[0]-p0[0])*t,p0[1]+(p1[1]-p0[1])*t,size,color); budget--; } }
 }
 function eraseSeg(c,p0,p1,size){ c.save(); c.globalCompositeOperation="destination-out"; c.strokeStyle="rgba(0,0,0,1)"; c.lineWidth=size*2.4; c.lineCap="round"; c.lineJoin="round";
   c.beginPath(); c.moveTo(p0[0],p0[1]); c.lineTo(p1[0],p1[1]); c.stroke(); c.restore(); }
@@ -552,7 +553,7 @@ function openBoard(id){
   const bf=document.getElementById("bfloat");
   bf.style.left=""; bf.style.right="16px"; bf.style.top="16px"; bf.style.opacity=0.92;
   document.getElementById("bfloatOp").value=92;
-  bf.classList.remove("hidden"); document.getElementById("floatBtn").classList.add("on");
+  bf.classList.add("hidden"); document.getElementById("floatBtn").classList.remove("on");  // start hidden so the canvas is unobstructed (tap 📄 Re-read to show)
   document.getElementById("boardOv").classList.add("show");
   bd.cv = document.getElementById("boardCanvas");
   bd.ctx = bd.cv.getContext("2d",{desynchronized:true});
@@ -590,7 +591,7 @@ function bindFloat(){
 }
 function sizeBoard(){
   const wrap = bd.cv.parentElement, r = wrap.getBoundingClientRect();
-  bd.dpr = Math.min(window.devicePixelRatio||1, 2);
+  bd.dpr = Math.min(window.devicePixelRatio||1, 1.5);
   bd.cv.width = Math.round(r.width*bd.dpr); bd.cv.height = Math.round(r.height*bd.dpr);
   bd.ctx.setTransform(bd.dpr,0,0,bd.dpr,0,0);
   bd.W = r.width; bd.H = r.height;
@@ -616,6 +617,7 @@ function drawStroke(st){
 function bindBoard(){
   const cv = bd.cv;
   cv.onpointerdown = e=>{ if(e.button!==undefined && e.button>0) return; e.preventDefault(); cv.setPointerCapture(e.pointerId);
+    const bf=document.getElementById("bfloat"); if(bf && !bf.classList.contains("hidden")){ bf.classList.add("hidden"); document.getElementById("floatBtn").classList.remove("on"); }
     bd.drawing=true;
     const x=e.clientX-bd.rect.left, y=e.clientY-bd.rect.top;
     bd.cur = { color:bd.pen, size:penSize, erase:bd.erase, points:[[Math.round(x),Math.round(y)]] };
