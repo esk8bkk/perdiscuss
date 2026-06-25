@@ -186,7 +186,7 @@ table.dt tr:hover td{background:#faf8f3;}
 </head>
 <body>
 <header>
-  <div class="brand" style="display:flex;align-items:center;gap:9px"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" style="border-radius:7px;flex:0 0 auto" viewBox="0 0 512 512"> <defs>  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">   <stop offset="0" stop-color="#141C52"/><stop offset="0.55" stop-color="#2747D8"/><stop offset="1" stop-color="#27C9DE"/>  </linearGradient> </defs> <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/> <g fill="#EAF2FF" opacity="0.96">   <circle cx="198" cy="220" r="72"/><circle cx="286" cy="198" r="64"/><circle cx="326" cy="256" r="58"/>   <circle cx="226" cy="290" r="66"/><circle cx="292" cy="284" r="52"/> </g> <g fill="none" stroke="#27C9DE" stroke-width="11" stroke-linecap="round" opacity="0.9">   <path d="M150 228 q44 -64 116 -56"/><path d="M204 326 q64 32 150 -12"/>   <path d="M168 286 q-18 -36 8 -70"/> </g> <path d="M286 144 L210 272 L264 272 L228 384 L338 232 L284 232 Z" fill="#FBD23D" stroke="#FFF6C2" stroke-width="7" stroke-linejoin="round"/></svg><span>CCM Part 1 · Rev 17 → Rev 2<small>Brainstorm Board — Safety Instructor Team · build v8</small></span></div>
+  <div class="brand" style="display:flex;align-items:center;gap:9px"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" style="border-radius:7px;flex:0 0 auto" viewBox="0 0 512 512"> <defs>  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">   <stop offset="0" stop-color="#141C52"/><stop offset="0.55" stop-color="#2747D8"/><stop offset="1" stop-color="#27C9DE"/>  </linearGradient> </defs> <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/> <g fill="#EAF2FF" opacity="0.96">   <circle cx="198" cy="220" r="72"/><circle cx="286" cy="198" r="64"/><circle cx="326" cy="256" r="58"/>   <circle cx="226" cy="290" r="66"/><circle cx="292" cy="284" r="52"/> </g> <g fill="none" stroke="#27C9DE" stroke-width="11" stroke-linecap="round" opacity="0.9">   <path d="M150 228 q44 -64 116 -56"/><path d="M204 326 q64 32 150 -12"/>   <path d="M168 286 q-18 -36 8 -70"/> </g> <path d="M286 144 L210 272 L264 272 L228 384 L338 232 L284 232 Z" fill="#FBD23D" stroke="#FFF6C2" stroke-width="7" stroke-linejoin="round"/></svg><span>CCM Part 1 · Rev 17 → Rev 2<small>Brainstorm Board — Safety Instructor Team · build v9-diag</small></span></div>
   <div class="sess"><span style="font-size:11px;opacity:.8">Session</span><input id="sessName" value="Rev2 Kickoff" /></div>
   <div class="tools">
     <button class="btn" onclick="addNote()">＋ Sticky</button>
@@ -273,6 +273,7 @@ table.dt tr:hover td{background:#faf8f3;}
     </div>
   </div>
   <div class="board-canvas-wrap"><canvas id="boardCanvas"></canvas>
+    <div id="bdbg" style="position:absolute;left:8px;bottom:8px;z-index:9;font:12px monospace;color:#7FE3FF;background:rgba(0,0,0,.6);padding:5px 9px;border-radius:6px;pointer-events:none;white-space:nowrap">diag: draw one line…</div>
     <div class="bfloat hidden" id="bfloat">
       <div class="fhead" id="bfloatHead">
         <span class="ftitle">📄 <span id="bfloatTitle"></span></span>
@@ -490,6 +491,9 @@ const BG = { dark:"#000000", light:"#FAF7F2" };
 let bd = { id:null, ctx:null, cv:null, strokes:[], cur:null, pen:"#F2F2EC", erase:false, bg:"dark", dpr:1, drawing:false, bgCanvas:null };
 let penSize = 4;
 let bdRAF = 0;
+const DBG={down:0,mvRaw:0,move:0,up:0,ignored:0,type:'-'};
+function updateDbg(){ const el=document.getElementById("bdbg"); if(!el) return;
+  el.textContent='t:'+DBG.type+' down:'+DBG.down+' mvRaw:'+DBG.mvRaw+' mv:'+DBG.move+' ign:'+DBG.ignored+' up:'+DBG.up+' pts:'+(bd.cur?bd.cur.points.length:'-')+' strk:'+bd.strokes.length+' '+(bd.drawing?'DRAW':'idle'); }
 const _rnd=(a,b)=>a+Math.random()*(b-a);
 // procedural slate chalkboard texture -> offscreen canvas (sits behind strokes as CSS bg)
 function genSlate(w,h){
@@ -643,21 +647,24 @@ function bindBoard(){
   cv.onpointerdown = e=>{ if(e.button!==undefined && e.button>0) return;
     if(bd.drawing){
       if(e.pointerType==="pen" && bd.activeType!=="pen"){ finalizeStroke(); }  // Pencil takes over from a finger
-      else return;                                                            // ignore palm / extra fingers
+      else { DBG.ignored++; updateDbg(); return; }                            // ignore palm / extra fingers
     }
     e.preventDefault();
     bd.activeId=e.pointerId; bd.activeType=e.pointerType;
     const x=e.clientX-bd.rect.left, y=e.clientY-bd.rect.top;
     bd.cur = { color:bd.pen, size:penSize, erase:bd.erase, points:[[Math.round(x),Math.round(y)]], rendered:0 };
-    bd.drawing=true;
+    bd.drawing=true; DBG.down++; DBG.type=e.pointerType||"?"; updateDbg();
     if(!bd.cur.erase) chalkStamp(bd.ctx,x,y,bd.cur.size,bd.cur.color);
     if(!bdRAF) bdRAF=requestAnimationFrame(bdTick);
   };
-  cv.onpointermove = e=>{ if(!bd.drawing || !bd.cur || e.pointerId!==bd.activeId) return;
+  cv.onpointermove = e=>{ DBG.mvRaw++;
+    if(!bd.drawing || !bd.cur || e.pointerId!==bd.activeId){ updateDbg(); return; }
     const evs = (e.getCoalescedEvents && e.getCoalescedEvents().length) ? e.getCoalescedEvents() : [e];
+    DBG.move+=evs.length;
     for(const ev of evs){ bd.cur.points.push([Math.round(ev.clientX-bd.rect.left), Math.round(ev.clientY-bd.rect.top)]); }  // collect; rAF draws
+    updateDbg();
   };
-  cv.onpointerup = cv.onpointercancel = e=>{ if(!bd.drawing || e.pointerId!==bd.activeId) return; finalizeStroke(); };
+  cv.onpointerup = cv.onpointercancel = e=>{ DBG.up++; if(!bd.drawing || e.pointerId!==bd.activeId){ updateDbg(); return; } finalizeStroke(); updateDbg(); };
   if(!bd._resizeBound){ bd._resizeBound=true; window.addEventListener("resize", onBoardResize); }
 }
 function onBoardResize(){ if(!document.getElementById("boardOv").classList.contains("show")) return; sizeBoard(); redrawBoard(); }
