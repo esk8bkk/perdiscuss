@@ -103,6 +103,19 @@ table.dt tr:hover td{background:#faf8f3;}
 .add-row{margin-top:12px;}
 
 .hint{font-size:12px;color:var(--muted);margin:2px 0 12px;}
+/* ---- WHITEBOARD TAB ---- */
+#v-white.active{display:flex;flex-direction:column;height:100%;}
+.wb-wrap{display:flex;flex-direction:column;height:100%;width:100%;}
+.wb-tools{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.wb-tools .pens{display:inline-flex;gap:6px;}
+.wpen{width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid transparent;}
+.wpen.on{border-color:var(--purple);box-shadow:0 0 0 2px rgba(39,71,216,.3);}
+.wsel{border:1px solid var(--border);border-radius:6px;padding:5px 7px;font-size:12px;background:#fff;}
+.wb-tools .btn{background:#eef1f8;color:var(--purple-d);border:1px solid var(--border);}
+.wb-tools .btn.on{background:var(--purple);color:#fff;border-color:var(--purple);}
+.wb-tools .btn.gold{background:var(--gold);color:#06323a;border-color:var(--gold);font-weight:600;}
+.wb-canvas-wrap{flex:1;position:relative;overflow:hidden;}
+#whiteCanvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;display:block;}
 
 /* ---- MODAL ---- */
 .overlay{position:fixed;inset:0;background:rgba(40,25,60,.42);display:none;align-items:center;justify-content:center;z-index:50;}
@@ -186,7 +199,7 @@ table.dt tr:hover td{background:#faf8f3;}
 </head>
 <body>
 <header>
-  <div class="brand" style="display:flex;align-items:center;gap:9px"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" style="border-radius:7px;flex:0 0 auto" viewBox="0 0 512 512"> <defs>  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">   <stop offset="0" stop-color="#141C52"/><stop offset="0.55" stop-color="#2747D8"/><stop offset="1" stop-color="#27C9DE"/>  </linearGradient> </defs> <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/> <g fill="#EAF2FF" opacity="0.96">   <circle cx="198" cy="220" r="72"/><circle cx="286" cy="198" r="64"/><circle cx="326" cy="256" r="58"/>   <circle cx="226" cy="290" r="66"/><circle cx="292" cy="284" r="52"/> </g> <g fill="none" stroke="#27C9DE" stroke-width="11" stroke-linecap="round" opacity="0.9">   <path d="M150 228 q44 -64 116 -56"/><path d="M204 326 q64 32 150 -12"/>   <path d="M168 286 q-18 -36 8 -70"/> </g> <path d="M286 144 L210 272 L264 272 L228 384 L338 232 L284 232 Z" fill="#FBD23D" stroke="#FFF6C2" stroke-width="7" stroke-linejoin="round"/></svg><span>CCM Part 1 · Rev 17 → Rev 2<small>Brainstorm Board — Safety Instructor Team · build v12</small></span></div>
+  <div class="brand" style="display:flex;align-items:center;gap:9px"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" style="border-radius:7px;flex:0 0 auto" viewBox="0 0 512 512"> <defs>  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">   <stop offset="0" stop-color="#141C52"/><stop offset="0.55" stop-color="#2747D8"/><stop offset="1" stop-color="#27C9DE"/>  </linearGradient> </defs> <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/> <g fill="#EAF2FF" opacity="0.96">   <circle cx="198" cy="220" r="72"/><circle cx="286" cy="198" r="64"/><circle cx="326" cy="256" r="58"/>   <circle cx="226" cy="290" r="66"/><circle cx="292" cy="284" r="52"/> </g> <g fill="none" stroke="#27C9DE" stroke-width="11" stroke-linecap="round" opacity="0.9">   <path d="M150 228 q44 -64 116 -56"/><path d="M204 326 q64 32 150 -12"/>   <path d="M168 286 q-18 -36 8 -70"/> </g> <path d="M286 144 L210 272 L264 272 L228 384 L338 232 L284 232 Z" fill="#FBD23D" stroke="#FFF6C2" stroke-width="7" stroke-linejoin="round"/></svg><span>CCM Part 1 · Rev 17 → Rev 2<small>Brainstorm Board — Safety Instructor Team · build v13</small></span></div>
   <div class="sess"><span style="font-size:11px;opacity:.8">Session</span><input id="sessName" value="Rev2 Kickoff" /></div>
   <div class="tools">
     <button class="btn" onclick="addNote()">＋ Sticky</button>
@@ -204,7 +217,7 @@ table.dt tr:hover td{background:#faf8f3;}
 <nav class="tabs">
   <button data-v="heat" class="active" onclick="show('heat')">Heat Map</button>
   <button data-v="canvas" onclick="show('canvas')">Sticky Canvas</button>
-  <button data-v="tracker" onclick="show('tracker')">Decision Tracker</button>
+  <button data-v="white" onclick="show('white')">Whiteboard</button>
   <div class="stat" id="stat"></div>
 </nav>
 
@@ -230,14 +243,28 @@ table.dt tr:hover td{background:#faf8f3;}
     </div>
   </section>
 
-  <section id="v-tracker" class="view">
-    <div id="tracker">
-      <p class="hint">Fill live during the session. Every decision needs an owner and a date. Cells are editable — click to type.</p>
-      <table class="dt">
-        <thead><tr><th style="width:24%">Decision</th><th style="width:34%">Outcome</th><th style="width:16%">Owner</th><th style="width:12%">Due</th><th style="width:10%">Status</th><th></th></tr></thead>
-        <tbody id="dtBody"></tbody>
-      </table>
-      <button class="btn add-row" style="background:var(--purple)" onclick="addRow()">＋ Add decision</button>
+  <section id="v-white" class="view">
+    <div class="wb-wrap">
+      <div class="wb-tools">
+        <span class="pens">
+          <i class="wpen on" style="background:#1F2937" data-c="#1F2937" onclick="wbPen(this)"></i>
+          <i class="wpen" style="background:#2747D8" data-c="#2747D8" onclick="wbPen(this)"></i>
+          <i class="wpen" style="background:#27C9DE" data-c="#27C9DE" onclick="wbPen(this)"></i>
+          <i class="wpen" style="background:#E5484D" data-c="#E5484D" onclick="wbPen(this)"></i>
+          <i class="wpen" style="background:#16B8A6" data-c="#16B8A6" onclick="wbPen(this)"></i>
+          <i class="wpen" style="background:#FBD23D" data-c="#FBD23D" onclick="wbPen(this)"></i>
+        </span>
+        <select id="wbSize" class="wsel" onchange="wbSizeVal=+this.value" title="Pen size">
+          <option value="2">Thin</option><option value="4" selected>Medium</option><option value="8">Thick</option><option value="18">Marker</option>
+        </select>
+        <button class="btn" id="wbEra" onclick="wbToggleEraser()">🧽 Eraser</button>
+        <button class="btn" onclick="wbUndo()">↶ Undo</button>
+        <button class="btn" onclick="wbClear()">🗑 Clear</button>
+        <button class="btn" onclick="wbToggleBg()">◐ Board</button>
+        <span style="flex:1"></span>
+        <button class="btn gold" onclick="wbPNG()">🖼 PNG</button>
+      </div>
+      <div class="wb-canvas-wrap"><canvas id="whiteCanvas"></canvas></div>
     </div>
   </section>
 </main>
@@ -300,7 +327,7 @@ const DEFAULT_DECISIONS = [
   "Reference sweep (9 renames)","Rollout / cut-over date","Compliance sign-off path"
 ];
 const LS_PREFIX = "ccm_rev2_board:";
-let state = { notes:[], decisions:[], filter:"all", status:{}, boards:{} };
+let state = { notes:[], decisions:[], filter:"all", status:{}, boards:{}, white:{strokes:[],bg:"light"} };
 let noteSeq = 1;
 const TLT = { g:"Verified", y:"Need verification", r:"Discuss w/ function concerned" };
 function tlInner(id){
@@ -467,7 +494,8 @@ function tidy(){
 
 /* ---------- TRACKER ---------- */
 function buildTracker(){
-  const b = document.getElementById("dtBody"); b.innerHTML="";
+  const b = document.getElementById("dtBody"); if(!b) return;   // tracker tab removed
+  b.innerHTML="";
   state.decisions.forEach((d,i)=>b.appendChild(rowEl(d,i)));
 }
 function rowEl(d,i){
@@ -685,13 +713,15 @@ function persist(){
   LS.set(LS_PREFIX+"__last", JSON.stringify(snapshot()));
   updateStat();
 }
-function snapshot(){return {name:document.getElementById("sessName").value, notes:state.notes, decisions:state.decisions, status:state.status, boards:state.boards, ts:new Date().toISOString()};}
+function snapshot(){return {name:document.getElementById("sessName").value, notes:state.notes, decisions:state.decisions, status:state.status, boards:state.boards, white:state.white, ts:new Date().toISOString()};}
 function loadSnap(o){
   state.notes = o.notes||[]; state.decisions = (o.decisions&&o.decisions.length)?o.decisions:freshDecisions();
   state.status = o.status||{}; state.boards = o.boards||{};
+  state.white = o.white || {strokes:[],bg:"light"}; wb.bg = state.white.bg||"light";
   noteSeq = state.notes.reduce((m,n)=>Math.max(m,parseInt((n.nid||"n0").slice(1))||0),0)+1;
   if(o.name) document.getElementById("sessName").value=o.name;
   buildHeat(); renderNotes(); buildTracker(); refreshNoteDots(); updateStat();
+  if(wb.inited && document.getElementById("v-white").classList.contains("active")){ sizeWhite(); redrawWhite(); }
 }
 function freshDecisions(){return DEFAULT_DECISIONS.map(d=>({decision:d,outcome:"",owner:"",due:"",status:"Open"}));}
 function saveSession(){
@@ -736,19 +766,84 @@ function exportPNG(){
 function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
 function wrap(c,t,x,y,max,lh){const words=t.split(/\s+/);let line="",yy=y;for(const w of words){const test=line+w+" ";if(c.measureText(test).width>max&&line){c.fillText(line,x,yy);line=w+" ";yy+=lh;if(yy>y+90)break;}else line=test;}c.fillText(line,x,yy);}
 function dl(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
-function resetAll(){if(confirm("Clear all stickies, review status, blackboards and reset the tracker? (saved sessions are kept)")){state.notes=[];state.decisions=freshDecisions();state.status={};state.boards={};buildHeat();renderNotes();buildTracker();refreshNoteDots();persist();toast("Reset");}}
+function resetAll(){if(confirm("Clear all stickies, review status, blackboards and the whiteboard? (saved sessions are kept)")){state.notes=[];state.decisions=freshDecisions();state.status={};state.boards={};state.white={strokes:[],bg:"light"};buildHeat();renderNotes();refreshNoteDots();if(wb.inited){redrawWhite();}persist();toast("Reset");}}
 
 /* ---------- UI ---------- */
 function show(v){
   document.querySelectorAll(".view").forEach(s=>s.classList.remove("active"));
   document.getElementById("v-"+v).classList.add("active");
   document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.toggle("active",b.dataset.v===v));
+  if(v==="white"){ if(!wb.inited){ wb.inited=true; initWhite(); } else { sizeWhite(); redrawWhite(); } }
 }
 function updateStat(){
   const v=Object.values(state.status);
   const g=v.filter(x=>x==="g").length,y=v.filter(x=>x==="y").length,r=v.filter(x=>x==="r").length;
-  document.getElementById("stat").innerHTML = `🟢 <b>${g}</b> 🟡 <b>${y}</b> 🔴 <b>${r}</b> &nbsp;·&nbsp; <b>${state.notes.length}</b> stickies · <b>${state.decisions.filter(d=>d.owner).length}/${state.decisions.length}</b> decisions owned`;
+  document.getElementById("stat").innerHTML = `🟢 <b>${g}</b> 🟡 <b>${y}</b> 🔴 <b>${r}</b> &nbsp;·&nbsp; <b>${state.notes.length}</b> stickies`;
 }
+
+/* ---------- WHITEBOARD TAB (free canvas) ---------- */
+let wbSizeVal = 4;
+const WBG = { dark:"#000000", light:"#FFFFFF" };
+const wb = { cv:null, ctx:null, pen:"#1F2937", erase:false, bg:"light", dpr:1, rect:null, W:0, H:0, inited:false, bound:false, inProg:new Map() };
+function initWhite(){
+  wb.cv=document.getElementById("whiteCanvas"); wb.ctx=wb.cv.getContext("2d");
+  wb.bg = (state.white&&state.white.bg) || "light";
+  sizeWhite(); redrawWhite();
+  if(!wb.bound){ wb.bound=true; bindWhite();
+    window.addEventListener("resize", ()=>{ if(document.getElementById("v-white").classList.contains("active")){ sizeWhite(); redrawWhite(); } });
+  }
+}
+function sizeWhite(){
+  const wrap=wb.cv.parentElement, r=wrap.getBoundingClientRect();
+  wb.dpr=Math.min(window.devicePixelRatio||1,2);
+  wb.cv.width=Math.max(2,Math.round(r.width*wb.dpr)); wb.cv.height=Math.max(2,Math.round(r.height*wb.dpr));
+  wb.ctx.setTransform(wb.dpr,0,0,wb.dpr,0,0); wb.W=r.width; wb.H=r.height; wb.rect=wb.cv.getBoundingClientRect();
+}
+function redrawWhite(){
+  const c=wb.ctx; c.save(); c.setTransform(wb.dpr,0,0,wb.dpr,0,0);
+  c.fillStyle=WBG[wb.bg]; c.fillRect(0,0,wb.W,wb.H);
+  (state.white.strokes||[]).forEach(st=>wbDrawStroke(st)); c.restore();
+}
+function wbDrawStroke(st){
+  const c=wb.ctx, pts=st.points; if(!pts.length) return;
+  if(st.erase){ c.globalAlpha=1; c.strokeStyle=WBG[wb.bg]; c.lineWidth=st.size*2.4; c.lineCap="round"; c.lineJoin="round";
+    c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++)c.lineTo(pts[i][0],pts[i][1]); if(pts.length===1)c.lineTo(pts[0][0]+0.1,pts[0][1]+0.1); c.stroke(); return; }
+  if(pts.length===1){ chalkStamp(c,pts[0][0],pts[0][1],st.size,st.color); return; }
+  c.globalAlpha=0.92; c.strokeStyle=st.color; c.lineWidth=st.size; c.lineCap="round"; c.lineJoin="round";
+  c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++)c.lineTo(pts[i][0],pts[i][1]); c.stroke(); c.globalAlpha=1;
+  chalkGrain(c,pts,st.size,st.color);
+}
+function bindWhite(){
+  const cv=wb.cv;
+  cv.onpointerdown=e=>{ if(e.button!==undefined&&e.button>0)return; e.preventDefault();
+    const x=e.clientX-wb.rect.left, y=e.clientY-wb.rect.top;
+    const st={ color:wb.pen, size:wbSizeVal, erase:wb.erase, points:[[Math.round(x),Math.round(y)]] };
+    wb.inProg.set(e.pointerId, st);
+    if(!st.erase) chalkStamp(wb.ctx,x,y,st.size,st.color);
+  };
+  cv.onpointermove=e=>{ const st=wb.inProg.get(e.pointerId); if(!st) return;
+    if(e.cancelable) e.preventDefault();
+    const evs=(e.getCoalescedEvents&&e.getCoalescedEvents().length)?e.getCoalescedEvents():[e];
+    const c=wb.ctx, last=st.points[st.points.length-1];
+    if(st.erase){ c.globalAlpha=1; c.strokeStyle=WBG[wb.bg]; } else { c.globalAlpha=0.92; c.strokeStyle=st.color; }
+    c.lineWidth=st.size*(st.erase?2.4:1); c.lineCap="round"; c.lineJoin="round";
+    c.beginPath(); c.moveTo(last[0],last[1]);
+    for(const ev of evs){ const nx=ev.clientX-wb.rect.left, ny=ev.clientY-wb.rect.top; c.lineTo(nx,ny); st.points.push([Math.round(nx),Math.round(ny)]); }
+    c.stroke(); c.globalAlpha=1;
+  };
+  cv.onpointerup=cv.onpointercancel=e=>{ const st=wb.inProg.get(e.pointerId); if(!st) return;
+    wb.inProg.delete(e.pointerId);
+    if(!st.erase && st.points.length>1) chalkGrain(wb.ctx, st.points, st.size, st.color);
+    state.white.strokes.push(st); persist();
+  };
+  cv.addEventListener("touchmove", e=>{ if(e.cancelable) e.preventDefault(); }, {passive:false});
+}
+function wbPen(el){ document.querySelectorAll(".wpen").forEach(p=>p.classList.remove("on")); el.classList.add("on"); wb.pen=el.dataset.c; wb.erase=false; document.getElementById("wbEra").classList.remove("on"); }
+function wbToggleEraser(){ wb.erase=!wb.erase; document.getElementById("wbEra").classList.toggle("on",wb.erase); }
+function wbUndo(){ state.white.strokes.pop(); redrawWhite(); persist(); }
+function wbClear(){ if(confirm("Clear the whiteboard?")){ state.white.strokes=[]; redrawWhite(); persist(); } }
+function wbToggleBg(){ wb.bg=(wb.bg==="light")?"dark":"light"; state.white.bg=wb.bg; if(state.white.strokes.length===0){ /* keep default pen */ } redrawWhite(); persist(); }
+function wbPNG(){ wb.cv.toBlob(b=>{ dl(b,"CCM_whiteboard.png"); toast("Whiteboard PNG exported"); }); }
 function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
 function toast(t){const e=document.getElementById("toast");e.textContent=t;e.classList.add("show");clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("show"),1800);}
 document.getElementById("sessName").addEventListener("input",persistDebounced);
