@@ -186,7 +186,7 @@ table.dt tr:hover td{background:#faf8f3;}
 </head>
 <body>
 <header>
-  <div class="brand" style="display:flex;align-items:center;gap:9px"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" style="border-radius:7px;flex:0 0 auto" viewBox="0 0 512 512"> <defs>  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">   <stop offset="0" stop-color="#141C52"/><stop offset="0.55" stop-color="#2747D8"/><stop offset="1" stop-color="#27C9DE"/>  </linearGradient> </defs> <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/> <g fill="#EAF2FF" opacity="0.96">   <circle cx="198" cy="220" r="72"/><circle cx="286" cy="198" r="64"/><circle cx="326" cy="256" r="58"/>   <circle cx="226" cy="290" r="66"/><circle cx="292" cy="284" r="52"/> </g> <g fill="none" stroke="#27C9DE" stroke-width="11" stroke-linecap="round" opacity="0.9">   <path d="M150 228 q44 -64 116 -56"/><path d="M204 326 q64 32 150 -12"/>   <path d="M168 286 q-18 -36 8 -70"/> </g> <path d="M286 144 L210 272 L264 272 L228 384 L338 232 L284 232 Z" fill="#FBD23D" stroke="#FFF6C2" stroke-width="7" stroke-linejoin="round"/></svg><span>CCM Part 1 · Rev 17 → Rev 2<small>Brainstorm Board — Safety Instructor Team · build v7</small></span></div>
+  <div class="brand" style="display:flex;align-items:center;gap:9px"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" style="border-radius:7px;flex:0 0 auto" viewBox="0 0 512 512"> <defs>  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">   <stop offset="0" stop-color="#141C52"/><stop offset="0.55" stop-color="#2747D8"/><stop offset="1" stop-color="#27C9DE"/>  </linearGradient> </defs> <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/> <g fill="#EAF2FF" opacity="0.96">   <circle cx="198" cy="220" r="72"/><circle cx="286" cy="198" r="64"/><circle cx="326" cy="256" r="58"/>   <circle cx="226" cy="290" r="66"/><circle cx="292" cy="284" r="52"/> </g> <g fill="none" stroke="#27C9DE" stroke-width="11" stroke-linecap="round" opacity="0.9">   <path d="M150 228 q44 -64 116 -56"/><path d="M204 326 q64 32 150 -12"/>   <path d="M168 286 q-18 -36 8 -70"/> </g> <path d="M286 144 L210 272 L264 272 L228 384 L338 232 L284 232 Z" fill="#FBD23D" stroke="#FFF6C2" stroke-width="7" stroke-linejoin="round"/></svg><span>CCM Part 1 · Rev 17 → Rev 2<small>Brainstorm Board — Safety Instructor Team · build v8</small></span></div>
   <div class="sess"><span style="font-size:11px;opacity:.8">Session</span><input id="sessName" value="Rev2 Kickoff" /></div>
   <div class="tools">
     <button class="btn" onclick="addNote()">＋ Sticky</button>
@@ -595,21 +595,22 @@ function sizeBoard(){
   bd.ctx.setTransform(bd.dpr,0,0,bd.dpr,0,0);
   bd.W = r.width; bd.H = r.height;
   bd.rect = bd.cv.getBoundingClientRect();   // cached so we never call getBoundingClientRect during drawing
-  bd.bgCanvas = null;   // plain board background (no texture)
+  bd.bgCanvas = genSlate(Math.round(r.width), Math.round(r.height));
   applyBoardBg();
 }
 function redrawBoard(){
   const c = bd.ctx;
   c.save(); c.setTransform(bd.dpr,0,0,bd.dpr,0,0);
-  c.fillStyle = BG[bd.bg]; c.fillRect(0,0,bd.W,bd.H);   // opaque fill — fastest to composite
+  c.clearRect(0,0,bd.W,bd.H);
+  c.fillStyle = BG[bd.bg]; c.fillRect(0,0,bd.W,bd.H);
   bd.strokes.forEach(st=>drawStroke(st));
   c.restore();
 }
 function drawStroke(st){
   const c = bd.ctx, pts = st.points; if(!pts.length) return;
   if(st.erase){
-    c.globalAlpha=1; c.strokeStyle=BG[bd.bg]; c.lineWidth=st.size*2.4; c.lineCap="round"; c.lineJoin="round";
-    c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); if(pts.length===1)c.lineTo(pts[0][0]+0.1,pts[0][1]+0.1); c.stroke(); return;
+    c.save(); c.globalCompositeOperation="destination-out"; c.globalAlpha=1; c.strokeStyle="rgba(0,0,0,1)"; c.lineWidth=st.size*2.4; c.lineCap="round"; c.lineJoin="round";
+    c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); if(pts.length===1)c.lineTo(pts[0][0]+0.1,pts[0][1]+0.1); c.stroke(); c.restore(); return;
   }
   if(pts.length===1){ chalkStamp(c,pts[0][0],pts[0][1],st.size,st.color); return; }
   c.globalAlpha=0.9; c.strokeStyle=st.color; c.lineWidth=st.size; c.lineCap="round"; c.lineJoin="round";
@@ -619,11 +620,11 @@ function drawStroke(st){
 function flushSeg(cur){
   const pts=cur.points, n=pts.length; if(cur.rendered>=n-1) return;
   const c=bd.ctx;
-  if(cur.erase){ c.globalAlpha=1; c.strokeStyle=BG[bd.bg]; } else { c.globalAlpha=0.9; c.strokeStyle=cur.color; }
+  if(cur.erase){ c.save(); c.globalCompositeOperation="destination-out"; c.globalAlpha=1; c.strokeStyle="rgba(0,0,0,1)"; } else { c.globalAlpha=0.9; c.strokeStyle=cur.color; }
   c.lineWidth=cur.size*(cur.erase?2.4:1); c.lineCap="round"; c.lineJoin="round";
   c.beginPath(); c.moveTo(pts[cur.rendered][0],pts[cur.rendered][1]);
   for(let i=cur.rendered+1;i<n;i++) c.lineTo(pts[i][0],pts[i][1]);
-  c.stroke(); c.globalAlpha=1; cur.rendered=n-1;
+  c.stroke(); if(cur.erase) c.restore(); c.globalAlpha=1; cur.rendered=n-1;
 }
 function bdTick(){ bdRAF=0; if(bd.cur){ flushSeg(bd.cur); if(bd.drawing) bdRAF=requestAnimationFrame(bdTick); } }
 function bindBoard(){
@@ -657,7 +658,7 @@ function toggleEraser(){ bd.erase=!bd.erase; document.getElementById("eraBtn").c
 function undoStroke(){ bd.strokes.pop(); redrawBoard(); stashBoard(); }
 function clearBoard(){ if(confirm("Clear this board?")){ bd.strokes=[]; redrawBoard(); stashBoard(); } }
 function toggleBg(){ bd.bg = bd.bg==="dark"?"light":"dark";
-  bd.bgCanvas = null;
+  bd.bgCanvas = (bd.bg==="dark") ? genSlate(Math.round(bd.W), Math.round(bd.H)) : null;
   applyBoardBg(); redrawBoard(); stashBoard(); }
 let _stashT;
 function stashBoard(immediate){ if(bd.id==null) return;
