@@ -595,22 +595,21 @@ function sizeBoard(){
   bd.ctx.setTransform(bd.dpr,0,0,bd.dpr,0,0);
   bd.W = r.width; bd.H = r.height;
   bd.rect = bd.cv.getBoundingClientRect();   // cached so we never call getBoundingClientRect during drawing
-  bd.bgCanvas = genSlate(Math.round(r.width), Math.round(r.height));
+  bd.bgCanvas = null;   // plain board background (no texture)
   applyBoardBg();
 }
 function redrawBoard(){
   const c = bd.ctx;
   c.save(); c.setTransform(bd.dpr,0,0,bd.dpr,0,0);
-  c.clearRect(0,0,bd.W,bd.H);
-  c.fillStyle = BG[bd.bg]; c.fillRect(0,0,bd.W,bd.H);
+  c.fillStyle = BG[bd.bg]; c.fillRect(0,0,bd.W,bd.H);   // opaque fill — fastest to composite
   bd.strokes.forEach(st=>drawStroke(st));
   c.restore();
 }
 function drawStroke(st){
   const c = bd.ctx, pts = st.points; if(!pts.length) return;
   if(st.erase){
-    c.save(); c.globalCompositeOperation="destination-out"; c.globalAlpha=1; c.strokeStyle="rgba(0,0,0,1)"; c.lineWidth=st.size*2.4; c.lineCap="round"; c.lineJoin="round";
-    c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); if(pts.length===1)c.lineTo(pts[0][0]+0.1,pts[0][1]+0.1); c.stroke(); c.restore(); return;
+    c.globalAlpha=1; c.strokeStyle=BG[bd.bg]; c.lineWidth=st.size*2.4; c.lineCap="round"; c.lineJoin="round";
+    c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); if(pts.length===1)c.lineTo(pts[0][0]+0.1,pts[0][1]+0.1); c.stroke(); return;
   }
   if(pts.length===1){ chalkStamp(c,pts[0][0],pts[0][1],st.size,st.color); return; }
   c.globalAlpha=0.9; c.strokeStyle=st.color; c.lineWidth=st.size; c.lineCap="round"; c.lineJoin="round";
@@ -620,36 +619,45 @@ function drawStroke(st){
 function flushSeg(cur){
   const pts=cur.points, n=pts.length; if(cur.rendered>=n-1) return;
   const c=bd.ctx;
-  if(cur.erase){ c.save(); c.globalCompositeOperation="destination-out"; c.globalAlpha=1; c.strokeStyle="rgba(0,0,0,1)"; } else { c.globalAlpha=0.9; c.strokeStyle=cur.color; }
+  if(cur.erase){ c.globalAlpha=1; c.strokeStyle=BG[bd.bg]; } else { c.globalAlpha=0.9; c.strokeStyle=cur.color; }
   c.lineWidth=cur.size*(cur.erase?2.4:1); c.lineCap="round"; c.lineJoin="round";
   c.beginPath(); c.moveTo(pts[cur.rendered][0],pts[cur.rendered][1]);
   for(let i=cur.rendered+1;i<n;i++) c.lineTo(pts[i][0],pts[i][1]);
-  c.stroke(); if(cur.erase) c.restore(); c.globalAlpha=1; cur.rendered=n-1;
+  c.stroke(); c.globalAlpha=1; cur.rendered=n-1;
 }
 function bdTick(){ bdRAF=0; if(bd.cur){ flushSeg(bd.cur); if(bd.drawing) bdRAF=requestAnimationFrame(bdTick); } }
+function finalizeStroke(){
+  bd.drawing=false;
+  if(bdRAF){ cancelAnimationFrame(bdRAF); bdRAF=0; }
+  if(bd.cur){ flushSeg(bd.cur);
+    if(!bd.cur.erase && bd.cur.points.length>1) chalkGrain(bd.ctx,bd.cur.points,bd.cur.size,bd.cur.color);
+    bd.strokes.push(bd.cur);
+  }
+  bd.cur=null; bd.activeId=null; bd.activeType=null; stashBoard();
+}
 function bindBoard(){
   const cv = bd.cv;
-  // NOTE: no setPointerCapture (it throttles Apple Pencil input on iPad Safari).
-  // Rendering is decoupled from input via requestAnimationFrame so writing stays smooth.
-  cv.onpointerdown = e=>{ if(e.button!==undefined && e.button>0) return; e.preventDefault();
+  // No setPointerCapture (throttles Pencil on iPad Safari). rAF rendering.
+  // Each stroke is LOCKED to one pointer + Pencil priority, so a resting palm or
+  // second finger can't interrupt the stroke (the cause of broken / re-traced strokes).
+  cv.onpointerdown = e=>{ if(e.button!==undefined && e.button>0) return;
+    if(bd.drawing){
+      if(e.pointerType==="pen" && bd.activeType!=="pen"){ finalizeStroke(); }  // Pencil takes over from a finger
+      else return;                                                            // ignore palm / extra fingers
+    }
+    e.preventDefault();
+    bd.activeId=e.pointerId; bd.activeType=e.pointerType;
     const x=e.clientX-bd.rect.left, y=e.clientY-bd.rect.top;
     bd.cur = { color:bd.pen, size:penSize, erase:bd.erase, points:[[Math.round(x),Math.round(y)]], rendered:0 };
     bd.drawing=true;
     if(!bd.cur.erase) chalkStamp(bd.ctx,x,y,bd.cur.size,bd.cur.color);
     if(!bdRAF) bdRAF=requestAnimationFrame(bdTick);
   };
-  cv.onpointermove = e=>{ if(!bd.drawing || !bd.cur) return;
+  cv.onpointermove = e=>{ if(!bd.drawing || !bd.cur || e.pointerId!==bd.activeId) return;
     const evs = (e.getCoalescedEvents && e.getCoalescedEvents().length) ? e.getCoalescedEvents() : [e];
-    for(const ev of evs){ bd.cur.points.push([Math.round(ev.clientX-bd.rect.left), Math.round(ev.clientY-bd.rect.top)]); }  // just collect; rAF draws
+    for(const ev of evs){ bd.cur.points.push([Math.round(ev.clientX-bd.rect.left), Math.round(ev.clientY-bd.rect.top)]); }  // collect; rAF draws
   };
-  cv.onpointerup = cv.onpointercancel = e=>{ if(!bd.drawing) return; bd.drawing=false;
-    if(bdRAF){ cancelAnimationFrame(bdRAF); bdRAF=0; }
-    if(bd.cur){ flushSeg(bd.cur);
-      if(!bd.cur.erase && bd.cur.points.length>1) chalkGrain(bd.ctx,bd.cur.points,bd.cur.size,bd.cur.color);
-      bd.strokes.push(bd.cur);
-    }
-    bd.cur=null; stashBoard();
-  };
+  cv.onpointerup = cv.onpointercancel = e=>{ if(!bd.drawing || e.pointerId!==bd.activeId) return; finalizeStroke(); };
   if(!bd._resizeBound){ bd._resizeBound=true; window.addEventListener("resize", onBoardResize); }
 }
 function onBoardResize(){ if(!document.getElementById("boardOv").classList.contains("show")) return; sizeBoard(); redrawBoard(); }
@@ -658,7 +666,7 @@ function toggleEraser(){ bd.erase=!bd.erase; document.getElementById("eraBtn").c
 function undoStroke(){ bd.strokes.pop(); redrawBoard(); stashBoard(); }
 function clearBoard(){ if(confirm("Clear this board?")){ bd.strokes=[]; redrawBoard(); stashBoard(); } }
 function toggleBg(){ bd.bg = bd.bg==="dark"?"light":"dark";
-  bd.bgCanvas = (bd.bg==="dark") ? genSlate(Math.round(bd.W), Math.round(bd.H)) : null;
+  bd.bgCanvas = null;
   applyBoardBg(); redrawBoard(); stashBoard(); }
 let _stashT;
 function stashBoard(immediate){ if(bd.id==null) return;
