@@ -185,7 +185,7 @@ table.dt tr:hover td{background:#faf8f3;}
 </head>
 <body>
 <header>
-  <div class="brand">CCM Part 1 · Rev 17 → Rev 2<small>Brainstorm Board — Safety Instructor Team</small></div>
+  <div class="brand">CCM Part 1 · Rev 17 → Rev 2<small>Brainstorm Board — Safety Instructor Team · build v6</small></div>
   <div class="sess"><span style="font-size:11px;opacity:.8">Session</span><input id="sessName" value="Rev2 Kickoff" /></div>
   <div class="tools">
     <button class="btn" onclick="addNote()">＋ Sticky</button>
@@ -553,7 +553,7 @@ function openBoard(id){
   bf.classList.add("hidden"); document.getElementById("floatBtn").classList.remove("on");  // start hidden so the canvas is unobstructed (tap 📄 Re-read to show)
   document.getElementById("boardOv").classList.add("show");
   bd.cv = document.getElementById("boardCanvas");
-  bd.ctx = bd.cv.getContext("2d",{desynchronized:true});
+  bd.ctx = bd.cv.getContext("2d");
   sizeBoard(); redrawBoard();
   bindBoard(); bindFloat();
 }
@@ -599,13 +599,16 @@ function sizeBoard(){
 function redrawBoard(){
   const c = bd.ctx;
   c.save(); c.setTransform(bd.dpr,0,0,bd.dpr,0,0);
-  c.clearRect(0,0,bd.W,bd.H);   // transparent — slate shows through from the CSS background layer
+  c.fillStyle = BG[bd.bg]; c.fillRect(0,0,bd.W,bd.H);   // opaque fill — fastest to composite
   bd.strokes.forEach(st=>drawStroke(st));
   c.restore();
 }
 function drawStroke(st){
   const c = bd.ctx, pts = st.points; if(!pts.length) return;
-  if(st.erase){ for(let i=1;i<pts.length;i++) eraseSeg(c,pts[i-1],pts[i],st.size); return; }
+  if(st.erase){
+    c.globalAlpha=1; c.strokeStyle=BG[bd.bg]; c.lineWidth=st.size*2.4; c.lineCap="round"; c.lineJoin="round";
+    c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); if(pts.length===1)c.lineTo(pts[0][0]+0.1,pts[0][1]+0.1); c.stroke(); return;
+  }
   if(pts.length===1){ chalkStamp(c,pts[0][0],pts[0][1],st.size,st.color); return; }
   c.globalAlpha=0.9; c.strokeStyle=st.color; c.lineWidth=st.size; c.lineCap="round"; c.lineJoin="round";
   c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); c.stroke(); c.globalAlpha=1;
@@ -624,13 +627,12 @@ function bindBoard(){
     const evs = (e.getCoalescedEvents && e.getCoalescedEvents().length) ? e.getCoalescedEvents() : [e];
     const c=bd.ctx, last=bd.cur.points[bd.cur.points.length-1];
     // ONE path + ONE stroke() for the whole batch of points — not one stroke per point
-    if(bd.cur.erase){ c.save(); c.globalCompositeOperation="destination-out"; c.strokeStyle="rgba(0,0,0,1)"; }
+    if(bd.cur.erase){ c.globalAlpha=1; c.strokeStyle=BG[bd.bg]; }
     else { c.globalAlpha=0.9; c.strokeStyle=bd.cur.color; }
     c.lineWidth=bd.cur.size*(bd.cur.erase?2.4:1); c.lineCap="round"; c.lineJoin="round";
     c.beginPath(); c.moveTo(last[0],last[1]);
     for(const ev of evs){ const nx=ev.clientX-bd.rect.left, ny=ev.clientY-bd.rect.top; c.lineTo(nx,ny); bd.cur.points.push([Math.round(nx),Math.round(ny)]); }
-    c.stroke();
-    if(bd.cur.erase) c.restore(); else c.globalAlpha=1;
+    c.stroke(); c.globalAlpha=1;
   };
   cv.onpointerup = cv.onpointercancel = e=>{ if(!bd.drawing) return; bd.drawing=false;
     if(bd.cur && bd.cur.points.length){
@@ -657,12 +659,7 @@ function stashBoard(immediate){ if(bd.id==null) return;
   if(immediate){ persist(); } else { _stashT=setTimeout(persist,800); }   // debounce heavy serialize off the writing path
 }
 function verifyFromBoard(){ const id=bd.id; stashBoard(true); setStatusDirect(id,"g"); closeBoard(); toast("✓ "+id+" marked Verified"); }
-function exportBoardPNG(){
-  const tmp=document.createElement("canvas"); tmp.width=bd.cv.width; tmp.height=bd.cv.height; const tx=tmp.getContext("2d");
-  if(bd.bg==="dark" && bd.bgCanvas){ tx.drawImage(bd.bgCanvas,0,0,tmp.width,tmp.height); } else { tx.fillStyle=BG[bd.bg]; tx.fillRect(0,0,tmp.width,tmp.height); }
-  tx.drawImage(bd.cv,0,0);
-  tmp.toBlob(b=>{ dl(b,"CCM_"+(bd.id||"board")+"_blackboard.png"); toast("Board PNG exported"); });
-}
+function exportBoardPNG(){ bd.cv.toBlob(b=>{ dl(b,"CCM_"+(bd.id||"board")+"_blackboard.png"); toast("Board PNG exported"); }); }
 function closeBoard(){ stashBoard(true); window.removeEventListener("resize",onBoardResize); document.getElementById("boardOv").classList.remove("show"); bd.id=null; }
 
 /* ---------- PERSIST / IO ---------- */
