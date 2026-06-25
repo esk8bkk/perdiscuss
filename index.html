@@ -186,7 +186,7 @@ table.dt tr:hover td{background:#faf8f3;}
 </head>
 <body>
 <header>
-  <div class="brand" style="display:flex;align-items:center;gap:9px"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" style="border-radius:7px;flex:0 0 auto" viewBox="0 0 512 512"> <defs>  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">   <stop offset="0" stop-color="#141C52"/><stop offset="0.55" stop-color="#2747D8"/><stop offset="1" stop-color="#27C9DE"/>  </linearGradient> </defs> <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/> <g fill="#EAF2FF" opacity="0.96">   <circle cx="198" cy="220" r="72"/><circle cx="286" cy="198" r="64"/><circle cx="326" cy="256" r="58"/>   <circle cx="226" cy="290" r="66"/><circle cx="292" cy="284" r="52"/> </g> <g fill="none" stroke="#27C9DE" stroke-width="11" stroke-linecap="round" opacity="0.9">   <path d="M150 228 q44 -64 116 -56"/><path d="M204 326 q64 32 150 -12"/>   <path d="M168 286 q-18 -36 8 -70"/> </g> <path d="M286 144 L210 272 L264 272 L228 384 L338 232 L284 232 Z" fill="#FBD23D" stroke="#FFF6C2" stroke-width="7" stroke-linejoin="round"/></svg><span>CCM Part 1 · Rev 17 → Rev 2<small>Brainstorm Board — Safety Instructor Team · build v10-diag</small></span></div>
+  <div class="brand" style="display:flex;align-items:center;gap:9px"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" style="border-radius:7px;flex:0 0 auto" viewBox="0 0 512 512"> <defs>  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">   <stop offset="0" stop-color="#141C52"/><stop offset="0.55" stop-color="#2747D8"/><stop offset="1" stop-color="#27C9DE"/>  </linearGradient> </defs> <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/> <g fill="#EAF2FF" opacity="0.96">   <circle cx="198" cy="220" r="72"/><circle cx="286" cy="198" r="64"/><circle cx="326" cy="256" r="58"/>   <circle cx="226" cy="290" r="66"/><circle cx="292" cy="284" r="52"/> </g> <g fill="none" stroke="#27C9DE" stroke-width="11" stroke-linecap="round" opacity="0.9">   <path d="M150 228 q44 -64 116 -56"/><path d="M204 326 q64 32 150 -12"/>   <path d="M168 286 q-18 -36 8 -70"/> </g> <path d="M286 144 L210 272 L264 272 L228 384 L338 232 L284 232 Z" fill="#FBD23D" stroke="#FFF6C2" stroke-width="7" stroke-linejoin="round"/></svg><span>CCM Part 1 · Rev 17 → Rev 2<small>Brainstorm Board — Safety Instructor Team · build v11-diag</small></span></div>
   <div class="sess"><span style="font-size:11px;opacity:.8">Session</span><input id="sessName" value="Rev2 Kickoff" /></div>
   <div class="tools">
     <button class="btn" onclick="addNote()">＋ Sticky</button>
@@ -491,9 +491,10 @@ const BG = { dark:"#000000", light:"#FAF7F2" };
 let bd = { id:null, ctx:null, cv:null, strokes:[], cur:null, pen:"#F2F2EC", erase:false, bg:"dark", dpr:1, drawing:false, bgCanvas:null };
 let penSize = 4;
 let bdRAF = 0;
-const DBG={down:0,mvRaw:0,move:0,up:0,ignored:0,type:'-'};
+const inProg = new Map();   // pointerId -> stroke in progress (independent per pointer)
+const DBG={down:0,mvRaw:0,move:0,up:0,type:'-'};
 function updateDbg(){ const el=document.getElementById("bdbg"); if(!el) return;
-  el.textContent='t:'+DBG.type+' down:'+DBG.down+' mvRaw:'+DBG.mvRaw+' mv:'+DBG.move+' ign:'+DBG.ignored+' up:'+DBG.up+' pts:'+(bd.cur?bd.cur.points.length:'-')+' strk:'+bd.strokes.length+' '+(bd.drawing?'DRAW':'idle'); }
+  el.textContent='t:'+DBG.type+' down:'+DBG.down+' mvRaw:'+DBG.mvRaw+' mv:'+DBG.move+' up:'+DBG.up+' inprog:'+inProg.size+' strk:'+bd.strokes.length+' '+(inProg.size?'DRAW':'idle'); }
 const _rnd=(a,b)=>a+Math.random()*(b-a);
 // procedural slate chalkboard texture -> offscreen canvas (sits behind strokes as CSS bg)
 function genSlate(w,h){
@@ -620,54 +621,40 @@ function drawStroke(st){
   c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); c.stroke(); c.globalAlpha=1;
   chalkGrain(c,pts,st.size,st.color);
 }
-function flushSeg(cur){
-  const pts=cur.points, n=pts.length; if(cur.rendered>=n-1) return;
-  const c=bd.ctx;
-  if(cur.erase){ c.globalAlpha=1; c.strokeStyle=BG[bd.bg]; } else { c.globalAlpha=0.9; c.strokeStyle=cur.color; }
-  c.lineWidth=cur.size*(cur.erase?2.4:1); c.lineCap="round"; c.lineJoin="round";
-  c.beginPath(); c.moveTo(pts[cur.rendered][0],pts[cur.rendered][1]);
-  for(let i=cur.rendered+1;i<n;i++) c.lineTo(pts[i][0],pts[i][1]);
-  c.stroke(); c.globalAlpha=1; cur.rendered=n-1;
-}
-function bdTick(){ bdRAF=0; if(bd.cur){ flushSeg(bd.cur); if(bd.drawing) bdRAF=requestAnimationFrame(bdTick); } }
-function finalizeStroke(){
-  bd.drawing=false;
-  if(bd.cur){
-    if(!bd.cur.erase && bd.cur.points.length>1) chalkGrain(bd.ctx,bd.cur.points,bd.cur.size,bd.cur.color);
-    bd.strokes.push(bd.cur);   // stroke was drawn inline during move; just save it
-  }
-  bd.cur=null; bd.activeId=null; bd.activeType=null; stashBoard();
+function endStroke(st){
+  if(!st) return;
+  if(!st.erase && st.points.length>1) chalkGrain(bd.ctx, st.points, st.size, st.color);
+  bd.strokes.push(st); stashBoard();
 }
 function bindBoard(){
   const cv = bd.cv;
-  // No setPointerCapture (throttles Pencil on iPad Safari). rAF rendering.
-  // Each stroke is LOCKED to one pointer + Pencil priority, so a resting palm or
-  // second finger can't interrupt the stroke (the cause of broken / re-traced strokes).
+  // Every pointer is tracked independently in inProg — no locking, no rejection,
+  // so a stroke can never be dropped or cut short. preventDefault stops iOS
+  // from reclassifying the pen drag as a scroll (which was cancelling strokes).
   cv.onpointerdown = e=>{ if(e.button!==undefined && e.button>0) return;
-    if(bd.drawing){
-      if(e.pointerType==="pen" && bd.activeType!=="pen"){ finalizeStroke(); }  // Pencil takes over from a finger
-      else { DBG.ignored++; updateDbg(); return; }                            // ignore palm / extra fingers
-    }
     e.preventDefault();
-    bd.activeId=e.pointerId; bd.activeType=e.pointerType;
     const x=e.clientX-bd.rect.left, y=e.clientY-bd.rect.top;
-    bd.cur = { color:bd.pen, size:penSize, erase:bd.erase, points:[[Math.round(x),Math.round(y)]], rendered:0 };
-    bd.drawing=true; DBG.down++; DBG.type=e.pointerType||"?"; updateDbg();
-    if(!bd.cur.erase) chalkStamp(bd.ctx,x,y,bd.cur.size,bd.cur.color);
+    const st={ color:bd.pen, size:penSize, erase:bd.erase, points:[[Math.round(x),Math.round(y)]] };
+    inProg.set(e.pointerId, st);
+    DBG.down++; DBG.type=e.pointerType||"?"; updateDbg();
+    if(!st.erase) chalkStamp(bd.ctx,x,y,st.size,st.color);
   };
   cv.onpointermove = e=>{ DBG.mvRaw++;
-    if(!bd.drawing || !bd.cur || e.pointerId!==bd.activeId){ updateDbg(); return; }
-    if(e.cancelable) e.preventDefault();   // KEY: stops iOS treating the pen drag as a scroll → no mid-stroke cancel
+    const st=inProg.get(e.pointerId); if(!st){ updateDbg(); return; }
+    if(e.cancelable) e.preventDefault();
     const evs = (e.getCoalescedEvents && e.getCoalescedEvents().length) ? e.getCoalescedEvents() : [e];
-    const c=bd.ctx, cur=bd.cur, last=cur.points[cur.points.length-1];
-    if(cur.erase){ c.globalAlpha=1; c.strokeStyle=BG[bd.bg]; } else { c.globalAlpha=0.9; c.strokeStyle=cur.color; }
-    c.lineWidth=cur.size*(cur.erase?2.4:1); c.lineCap="round"; c.lineJoin="round";
+    const c=bd.ctx, last=st.points[st.points.length-1];
+    if(st.erase){ c.globalAlpha=1; c.strokeStyle=BG[bd.bg]; } else { c.globalAlpha=0.9; c.strokeStyle=st.color; }
+    c.lineWidth=st.size*(st.erase?2.4:1); c.lineCap="round"; c.lineJoin="round";
     c.beginPath(); c.moveTo(last[0],last[1]);
-    for(const ev of evs){ const nx=ev.clientX-bd.rect.left, ny=ev.clientY-bd.rect.top; c.lineTo(nx,ny); cur.points.push([Math.round(nx),Math.round(ny)]); }
+    for(const ev of evs){ const nx=ev.clientX-bd.rect.left, ny=ev.clientY-bd.rect.top; c.lineTo(nx,ny); st.points.push([Math.round(nx),Math.round(ny)]); }
     c.stroke(); c.globalAlpha=1;
     DBG.move+=evs.length; updateDbg();
   };
-  cv.onpointerup = cv.onpointercancel = e=>{ DBG.up++; if(!bd.drawing || e.pointerId!==bd.activeId){ updateDbg(); return; } finalizeStroke(); updateDbg(); };
+  cv.onpointerup = cv.onpointercancel = e=>{ DBG.up++;
+    const st=inProg.get(e.pointerId); if(!st){ updateDbg(); return; }
+    inProg.delete(e.pointerId); endStroke(st); updateDbg();
+  };
   if(!bd._touchBound){ bd._touchBound=true;
     cv.addEventListener("touchmove", e=>{ if(e.cancelable) e.preventDefault(); }, {passive:false});
   }
