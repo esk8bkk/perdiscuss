@@ -513,18 +513,20 @@ function applyBoardBg(){
   if(bd.bg==="dark" && bd.bgCanvas){ try{ wrap.style.backgroundImage="url("+bd.bgCanvas.toDataURL()+")"; wrap.style.backgroundSize="cover"; }catch(e){ wrap.style.backgroundImage="none"; wrap.style.background=BG.dark; } }
   else { wrap.style.backgroundImage="none"; wrap.style.background=BG[bd.bg]; }
 }
-// chalk scatter brush — a soft core plus dusty grain along each segment
+// chalk = a fast smooth core (drawn live) + dusty grain (added only on pen-up / redraw)
+function chalkCore(c,p0,p1,size,color){
+  c.globalAlpha=0.9; c.strokeStyle=color; c.lineWidth=size; c.lineCap="round"; c.lineJoin="round";
+  c.beginPath(); c.moveTo(p0[0],p0[1]); c.lineTo(p1[0],p1[1]); c.stroke(); c.globalAlpha=1;
+}
 function chalkStamp(c,cx,cy,size,color){
-  const R=size*0.62, n=Math.round(size*2)+5; c.fillStyle=color;
+  const R=size*0.6, n=Math.round(size*1.4)+3; c.fillStyle=color;
   for(let i=0;i<n;i++){ const a=Math.random()*6.283, rr=Math.pow(Math.random(),.7)*R;
-    c.globalAlpha=0.08+Math.random()*0.30; c.fillRect(cx+Math.cos(a)*rr, cy+Math.sin(a)*rr, 1, 1); }
+    c.globalAlpha=0.07+Math.random()*0.22; c.fillRect(cx+Math.cos(a)*rr, cy+Math.sin(a)*rr, 1, 1); }
   c.globalAlpha=1;
 }
-function chalkSeg(c,p0,p1,size,color){
-  c.globalAlpha=0.5; c.strokeStyle=color; c.lineWidth=size*0.7; c.lineCap="round"; c.lineJoin="round";
-  c.beginPath(); c.moveTo(p0[0],p0[1]); c.lineTo(p1[0],p1[1]); c.stroke(); c.globalAlpha=1;
-  const d=Math.hypot(p1[0]-p0[0],p1[1]-p0[1]), steps=Math.max(1,Math.floor(d/(size*0.4)));
-  for(let s=0;s<=steps;s++){ const t=s/steps; chalkStamp(c,p0[0]+(p1[0]-p0[0])*t,p0[1]+(p1[1]-p0[1])*t,size,color); }
+function chalkGrain(c,pts,size,color){   // one-time dusty pass along a finished stroke
+  for(let i=1;i<pts.length;i++){ const p0=pts[i-1],p1=pts[i], d=Math.hypot(p1[0]-p0[0],p1[1]-p0[1]), steps=Math.max(1,Math.floor(d/(size*0.7)));
+    for(let s=0;s<=steps;s++){ const t=s/steps; chalkStamp(c,p0[0]+(p1[0]-p0[0])*t,p0[1]+(p1[1]-p0[1])*t,size,color); } }
 }
 function eraseSeg(c,p0,p1,size){ c.save(); c.globalCompositeOperation="destination-out"; c.strokeStyle="rgba(0,0,0,1)"; c.lineWidth=size*2.4; c.lineCap="round"; c.lineJoin="round";
   c.beginPath(); c.moveTo(p0[0],p0[1]); c.lineTo(p1[0],p1[1]); c.stroke(); c.restore(); }
@@ -607,7 +609,9 @@ function drawStroke(st){
   const c = bd.ctx, pts = st.points; if(!pts.length) return;
   if(st.erase){ for(let i=1;i<pts.length;i++) eraseSeg(c,pts[i-1],pts[i],st.size); return; }
   if(pts.length===1){ chalkStamp(c,pts[0][0],pts[0][1],st.size,st.color); return; }
-  for(let i=1;i<pts.length;i++) chalkSeg(c,pts[i-1],pts[i],st.size,st.color);
+  c.globalAlpha=0.9; c.strokeStyle=st.color; c.lineWidth=st.size; c.lineCap="round"; c.lineJoin="round";
+  c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); c.stroke(); c.globalAlpha=1;
+  chalkGrain(c,pts,st.size,st.color);
 }
 function bindBoard(){
   const cv = bd.cv;
@@ -615,17 +619,23 @@ function bindBoard(){
     bd.drawing=true;
     const x=e.clientX-bd.rect.left, y=e.clientY-bd.rect.top;
     bd.cur = { color:bd.pen, size:penSize, erase:bd.erase, points:[[Math.round(x),Math.round(y)]] };
-    if(!bd.cur.erase) chalkStamp(bd.ctx,x,y,bd.cur.size,bd.cur.color);
+    if(!bd.cur.erase) chalkCore(bd.ctx,[x,y],[x+0.1,y+0.1],bd.cur.size,bd.cur.color);
   };
   cv.onpointermove = e=>{ if(!bd.drawing) return;
     const evs = (e.getCoalescedEvents && e.getCoalescedEvents().length) ? e.getCoalescedEvents() : [e];
     const c=bd.ctx; let last=bd.cur.points[bd.cur.points.length-1];
     for(const ev of evs){ const nx=ev.clientX-bd.rect.left, ny=ev.clientY-bd.rect.top, np=[nx,ny];
-      if(bd.cur.erase) eraseSeg(c,last,np,bd.cur.size); else chalkSeg(c,last,np,bd.cur.size,bd.cur.color);
-      bd.cur.points.push([Math.round(nx),Math.round(ny)]); last=[nx,ny];
+      if(bd.cur.erase) eraseSeg(c,last,np,bd.cur.size); else chalkCore(c,last,np,bd.cur.size,bd.cur.color);  // fast line only — no grain while moving
+      bd.cur.points.push([Math.round(nx),Math.round(ny)]); last=np;
     }
   };
-  cv.onpointerup = cv.onpointercancel = e=>{ if(!bd.drawing) return; bd.drawing=false; if(bd.cur&&bd.cur.points.length) bd.strokes.push(bd.cur); bd.cur=null; stashBoard(); };
+  cv.onpointerup = cv.onpointercancel = e=>{ if(!bd.drawing) return; bd.drawing=false;
+    if(bd.cur && bd.cur.points.length){
+      if(!bd.cur.erase){ if(bd.cur.points.length>1) chalkGrain(bd.ctx,bd.cur.points,bd.cur.size,bd.cur.color); else chalkStamp(bd.ctx,bd.cur.points[0][0],bd.cur.points[0][1],bd.cur.size,bd.cur.color); }
+      bd.strokes.push(bd.cur);
+    }
+    bd.cur=null; stashBoard();
+  };
   window.addEventListener("resize", onBoardResize);
 }
 function onBoardResize(){ if(!document.getElementById("boardOv").classList.contains("show")) return; sizeBoard(); redrawBoard(); }
