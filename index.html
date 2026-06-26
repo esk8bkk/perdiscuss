@@ -210,7 +210,7 @@ table.dt tr:hover td{background:#faf8f3;}
 </head>
 <body>
 <header>
-  <div class="brand" style="display:flex;align-items:center;gap:9px"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" style="border-radius:7px;flex:0 0 auto" viewBox="0 0 512 512"> <defs>  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">   <stop offset="0" stop-color="#2E5BEA"/><stop offset="0.5" stop-color="#3A2FB0"/><stop offset="1" stop-color="#7A3DD0"/>  </linearGradient>  <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">   <stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E7ECFF"/>  </linearGradient> </defs> <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#bg)"/> <!-- chat bubble panel (behind, right) --> <g fill="url(#panel)">   <rect x="196" y="168" width="232" height="150" rx="40"/>   <path d="M392 300 q6 44 40 60 q-46 2 -78 -28 Z"/> </g> <!-- person (front, left) with speech tail --> <g fill="#FFFFFF">   <circle cx="226" cy="262" r="62"/>   <path d="M138 392 a92 86 0 0 1 184 0 q0 8 -8 8 H146 q-8 0 -8 -8 Z"/>   <path d="M150 360 L120 430 L214 388 Z"/> </g></svg><span>CCM Part 1 · Rev 17 → Rev 2<small>Brainstorm Board — Safety Instructor Team · build v15</small></span></div>
+  <div class="brand" style="display:flex;align-items:center;gap:9px"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" style="border-radius:7px;flex:0 0 auto" viewBox="0 0 512 512"> <defs>  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">   <stop offset="0" stop-color="#2E5BEA"/><stop offset="0.5" stop-color="#3A2FB0"/><stop offset="1" stop-color="#7A3DD0"/>  </linearGradient>  <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">   <stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E7ECFF"/>  </linearGradient> </defs> <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#bg)"/> <!-- chat bubble panel (behind, right) --> <g fill="url(#panel)">   <rect x="196" y="168" width="232" height="150" rx="40"/>   <path d="M392 300 q6 44 40 60 q-46 2 -78 -28 Z"/> </g> <!-- person (front, left) with speech tail --> <g fill="#FFFFFF">   <circle cx="226" cy="262" r="62"/>   <path d="M138 392 a92 86 0 0 1 184 0 q0 8 -8 8 H146 q-8 0 -8 -8 Z"/>   <path d="M150 360 L120 430 L214 388 Z"/> </g></svg><span>CCM Part 1 · Rev 17 → Rev 2<small>Brainstorm Board — Safety Instructor Team · build v16</small></span></div>
   <div class="sess"><span style="font-size:11px;opacity:.8">Session</span><input id="sessName" value="Rev2 Kickoff" /></div>
   <div class="tools">
     <button class="btn" onclick="addNote()">＋ Sticky</button>
@@ -316,6 +316,8 @@ table.dt tr:hover td{background:#faf8f3;}
       <button class="tbtn" id="eraBtn" onclick="toggleEraser()" title="Eraser">🧽 Eraser</button>
       <button class="tbtn" onclick="undoStroke()" title="Undo">↶ Undo</button>
       <button class="tbtn" onclick="clearBoard()" title="Clear all">🗑 Clear</button>
+      <button class="tbtn" onclick="document.getElementById('imgInput').click()" title="Add an image to annotate over">🖼 Image</button>
+      <button class="tbtn" onclick="document.getElementById('pdfInput').click()" title="Open a PDF in a new tab">📄 PDF</button>
       <button class="tbtn" onclick="toggleBg()" title="Board color">◐ Board</button>
       <button class="tbtn" id="floatBtn" onclick="toggleFloat()" title="Show/hide the topic text to re-read">📄 Re-read</button>
       <span style="flex:1"></span>
@@ -326,6 +328,8 @@ table.dt tr:hover td{background:#faf8f3;}
     </div>
   </div>
   <div class="board-canvas-wrap"><canvas id="boardCanvas"></canvas>
+    <input id="imgInput" type="file" accept="image/*" style="display:none" onchange="addBoardImage(event)">
+    <input id="pdfInput" type="file" accept="application/pdf,.pdf" style="display:none" onchange="openPdf(event)">
     <div class="bfloat hidden" id="bfloat">
       <div class="fhead" id="bfloatHead">
         <span class="ftitle">📄 <span id="bfloatTitle"></span></span>
@@ -595,6 +599,7 @@ function openBoard(id){
   const saved = state.boards[id] || { strokes:[], bg:"dark" };
   bd.strokes = (saved.strokes||[]).map(st=>({...st, points:st.points.map(p=>p.slice())}));
   bd.bg = saved.bg || "dark";
+  bd.images = (saved.images||[]).map(im=>({...im})); bd.images.forEach(im=>preloadBoardImg(im.src));
   bd.erase = false; document.getElementById("eraBtn").classList.remove("on");
   // pin header
   const stt = state.status[id];
@@ -660,6 +665,7 @@ function redrawBoard(){
   const c = bd.ctx;
   c.save(); c.setTransform(bd.dpr,0,0,bd.dpr,0,0);
   c.fillStyle = BG[bd.bg]; c.fillRect(0,0,bd.W,bd.H);   // opaque fill — fastest to composite
+  drawBoardImages();
   bd.strokes.forEach(st=>drawStroke(st));
   c.restore();
 }
@@ -723,11 +729,28 @@ function toggleBg(){ bd.bg = bd.bg==="dark"?"light":"dark";
   applyBoardBg(); redrawBoard(); stashBoard(); }
 let _stashT;
 function stashBoard(immediate){ if(bd.id==null) return;
-  state.boards[bd.id] = { strokes:bd.strokes, bg:bd.bg };   // cheap reference update
+  state.boards[bd.id] = { strokes:bd.strokes, bg:bd.bg, images:bd.images||[] };   // cheap reference update
   const pb=document.getElementById("pen-"+bd.id); if(pb) pb.textContent = "🖊" + (bd.strokes.length?"•":"");
   clearTimeout(_stashT);
   if(immediate){ persist(); } else { _stashT=setTimeout(persist,800); }   // debounce heavy serialize off the writing path
 }
+const imgCache={};
+function preloadBoardImg(src){ if(!src||imgCache[src]) return; const im=new Image(); im.onload=()=>{ imgCache[src]=im; if(bd.id!=null) redrawBoard(); }; im.src=src; }
+function drawBoardImages(){ if(!bd.images) return; const c=bd.ctx; for(const im of bd.images){ const g=imgCache[im.src]; if(g&&g.complete){ try{ c.drawImage(g, im.x, im.y, im.w, im.h); }catch(e){} } } }
+function addBoardImage(e){ const f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ const tmp=new Image(); tmp.onload=()=>{
+      const maxd=1100, sc=Math.min(1,maxd/Math.max(tmp.width,tmp.height));
+      const cw=Math.max(1,Math.round(tmp.width*sc)), ch=Math.max(1,Math.round(tmp.height*sc));
+      const cv=document.createElement("canvas"); cv.width=cw; cv.height=ch; cv.getContext("2d").drawImage(tmp,0,0,cw,ch);
+      const src=cv.toDataURL("image/jpeg",0.82);
+      const fit=Math.min((bd.W*0.7)/cw,(bd.H*0.7)/ch,1), w=cw*fit, h=ch*fit;
+      bd.images=bd.images||[]; bd.images.push({src, x:(bd.W-w)/2, y:(bd.H-h)/2, w, h});
+      preloadBoardImg(src); stashBoard(true); toast("Image added — draw over it to annotate");
+    }; tmp.src=r.result; };
+  r.readAsDataURL(f);
+}
+function openPdf(e){ const f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f) return; const url=URL.createObjectURL(f); window.open(url,"_blank","noopener"); toast("Opening "+f.name); }
 function verifyFromBoard(){ const id=bd.id; stashBoard(true); setStatusDirect(id,"g"); closeBoard(); toast("✓ "+id+" marked Verified"); }
 function exportBoardPNG(){ bd.cv.toBlob(b=>{ dl(b,"CCM_"+(bd.id||"board")+"_blackboard.png"); toast("Board PNG exported"); }); }
 function closeBoard(){ stashBoard(true); window.removeEventListener("resize",onBoardResize); document.getElementById("boardOv").classList.remove("show"); bd.id=null; }
