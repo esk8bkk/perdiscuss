@@ -1,7 +1,7 @@
 /* PerDiscuss service worker — offline PWA.
    App shell is versioned (bump APP_CACHE on each app update);
    PDFs live in a stable cache so they are NOT re-downloaded on app updates. */
-const APP_CACHE = 'perdiscuss-app-v28';
+const APP_CACHE = 'perdiscuss-app-v29';
 const PDF_CACHE = 'perdiscuss-pdf-v1';
 const APP_ASSETS = [
   './', 'index.html', 'manifest.webmanifest',
